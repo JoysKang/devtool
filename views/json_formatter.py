@@ -337,6 +337,51 @@ class JsonFormatterView:
         # 创建 JsonAnalyzer 实例并设置初始配置
         self.analyzer = JsonAnalyzer(JsonAnalyzerConfig(indent=4))
 
+        # 创建图标按钮
+        button_padding = 2  # 减小 padding 值
+
+        # 创建按钮时使用更小的 padding
+        button_style = {
+            "icon_color": ft.colors.BLUE_GREY_400,
+            "icon_size": 20,
+            "padding": button_padding,
+        }
+
+        self.input_paste_button = ft.IconButton(
+            icon=ft.icons.CONTENT_PASTE,
+            tooltip="粘贴",
+            on_click=self.handle_paste,
+            **button_style,
+        )
+
+        self.input_copy_button = ft.IconButton(
+            icon=ft.icons.CONTENT_COPY,
+            tooltip="复制",
+            on_click=lambda _: self.handle_copy(self.input_text.value),
+            **button_style,
+        )
+
+        self.input_search_button = ft.IconButton(
+            icon=ft.icons.SEARCH,
+            tooltip="搜索",
+            on_click=self.handle_input_search,
+            **button_style,
+        )
+
+        self.output_copy_button = ft.IconButton(
+            icon=ft.icons.CONTENT_COPY,
+            tooltip="复制",
+            on_click=lambda _: self.handle_copy(self.get_output_text()),
+            **button_style,
+        )
+
+        self.output_search_button = ft.IconButton(
+            icon=ft.icons.SEARCH,
+            tooltip="搜索",
+            on_click=self.handle_output_search,
+            **button_style,
+        )
+
     def build(self) -> ft.Control:
         """构建视图"""
         return ft.Column(
@@ -360,43 +405,100 @@ class JsonFormatterView:
                 ft.Row(
                     [
                         # 左侧输入区域
-                        ft.Container(
-                            content=self.input_text,
-                            border=ft.border.all(1.5, ft.colors.BLUE_GREY_100),
-                            border_radius=12,
-                            padding=20,
-                            expand=True,
-                            bgcolor=ft.colors.WHITE,
-                            shadow=ft.BoxShadow(
-                                spread_radius=1,
-                                blur_radius=5,
-                                color=ft.colors.with_opacity(
-                                    0.1, ft.colors.BLUE_GREY_300
+                        ft.Column(
+                            [
+                                # 输入框顶部工具栏
+                                ft.Container(
+                                    content=ft.Row(
+                                        [
+                                            ft.Container(width=1, expand=True),  # 占位
+                                            # 使用 Stack 来紧密排列按钮
+                                            ft.Stack(
+                                                [
+                                                    self.input_paste_button,
+                                                    ft.Container(
+                                                        margin=ft.margin.only(left=30),
+                                                        content=self.input_copy_button,
+                                                    ),
+                                                    ft.Container(
+                                                        margin=ft.margin.only(left=60),
+                                                        content=self.input_search_button,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                        alignment=ft.MainAxisAlignment.END,
+                                    ),
+                                    padding=ft.padding.only(bottom=0),
                                 ),
-                            ),
-                            height=float("inf"),
+                                # 输入框容器
+                                ft.Container(
+                                    content=self.input_text,
+                                    border=ft.border.all(1.5, ft.colors.BLUE_GREY_100),
+                                    border_radius=12,
+                                    padding=20,
+                                    expand=True,
+                                    bgcolor=ft.colors.WHITE,
+                                    shadow=ft.BoxShadow(
+                                        spread_radius=1,
+                                        blur_radius=5,
+                                        color=ft.colors.with_opacity(
+                                            0.1, ft.colors.BLUE_GREY_300
+                                        ),
+                                    ),
+                                ),
+                            ],
+                            expand=True,
+                            spacing=0,  # 减小列内元素间距
                         ),
                         # 右侧输出区域
-                        ft.Container(
-                            content=ft.Column(
-                                [
-                                    self.error_text,
-                                    self.output_container,
-                                ],
-                                spacing=10,
-                            ),
-                            border=ft.border.all(1.5, ft.colors.BLUE_GREY_100),
-                            border_radius=12,
-                            padding=20,
-                            expand=True,
-                            bgcolor=ft.colors.WHITE,
-                            shadow=ft.BoxShadow(
-                                spread_radius=1,
-                                blur_radius=5,
-                                color=ft.colors.with_opacity(
-                                    0.1, ft.colors.BLUE_GREY_300
+                        ft.Column(
+                            [
+                                # 输出框顶部工具栏
+                                ft.Container(
+                                    content=ft.Row(
+                                        [
+                                            ft.Container(width=1, expand=True),  # 占位
+                                            # 使用 Stack 来紧密排列按钮
+                                            ft.Stack(
+                                                [
+                                                    self.output_copy_button,
+                                                    ft.Container(
+                                                        margin=ft.margin.only(left=30),
+                                                        content=self.output_search_button,
+                                                    ),
+                                                ],
+                                            ),
+                                        ],
+                                        alignment=ft.MainAxisAlignment.END,
+                                    ),
+                                    padding=ft.padding.only(bottom=0),
                                 ),
-                            ),
+                                # 输出框容器
+                                ft.Container(
+                                    content=ft.Column(
+                                        [
+                                            self.error_text,
+                                            self.output_container,
+                                        ],
+                                        spacing=10,
+                                    ),
+                                    border=ft.border.all(1.5, ft.colors.BLUE_GREY_100),
+                                    border_radius=12,
+                                    padding=20,
+                                    expand=True,
+                                    bgcolor=ft.colors.WHITE,
+                                    shadow=ft.BoxShadow(
+                                        spread_radius=1,
+                                        blur_radius=5,
+                                        color=ft.colors.with_opacity(
+                                            0.1, ft.colors.BLUE_GREY_300
+                                        ),
+                                    ),
+                                ),
+                            ],
+                            expand=True,
+                            spacing=0,  # 减小列内元素间距
                         ),
                     ],
                     expand=True,
@@ -477,6 +579,38 @@ class JsonFormatterView:
             self.error_text.color = ft.colors.RED_400
 
         self.page.update()
+
+    # 添加处理函数
+    async def handle_paste(self, e):
+        """处理粘贴操作"""
+        text = await self.page.get_clipboard()
+        if text:
+            self.input_text.value = text
+            self.on_input_change(None)
+            self.page.update()
+
+    def handle_copy(self, text: str):
+        """处理复制操作"""
+        self.page.set_clipboard(text)
+        self.page.show_snack_bar(ft.SnackBar(content=ft.Text("已复制到剪贴板")))
+
+    def handle_input_search(self, e):
+        """处理输入框搜索"""
+        # TODO: 实现输入框搜索功能
+        pass
+
+    def handle_output_search(self, e):
+        """处理输出框搜索"""
+        # TODO: 实现输出框搜索功能
+        pass
+
+    def get_output_text(self) -> str:
+        """获取输出文本内容"""
+        return "\n".join(
+            control.content.controls[0].value
+            for control in self.output_container.controls
+            if isinstance(control, ft.Container)
+        )
 
 
 class TestJsonAnalyzer(unittest.TestCase):
