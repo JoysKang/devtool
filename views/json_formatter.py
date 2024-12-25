@@ -290,10 +290,18 @@ class JsonFormatterView:
             ],
             on_change=self.on_indent_change,
             width=150,
+            height=35,
             border_radius=8,
             filled=True,
             focused_border_color=ft.colors.BLUE_400,
             focused_bgcolor=ft.colors.BLUE_50,
+            text_style=ft.TextStyle(
+                font_family="monospace",
+                color=ft.colors.BLUE_GREY_900,
+                size=12,
+            ),
+            content_padding=ft.padding.only(left=10, top=0, right=10, bottom=0),
+            item_height=48,
         )
 
         # 创建输入区域
@@ -339,7 +347,7 @@ class JsonFormatterView:
                         [
                             ft.Text(
                                 "JSON格式化",
-                                size=24,
+                                size=18,
                                 weight=ft.FontWeight.BOLD,
                                 color=ft.colors.BLUE_GREY_900,
                             ),
@@ -347,7 +355,6 @@ class JsonFormatterView:
                         ],
                         alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     ),
-                    padding=ft.padding.only(bottom=20),
                 ),
                 # 主要内容区
                 ft.Row(
