@@ -1,0 +1,11 @@
+{
+    "app_name": "JSON格式化工具",
+    "app_version": "1.0.0",
+    "product_name": "JSON Formatter",
+    "company_name": "Joys",
+    "file_description": "JSON格式化和验证工具",
+    "icon_path": "assets/icon.icns",
+    "publisher": "Joys",
+    "executable": "json_formatter",
+    "bundle_id": "com.joys.jsonformatter"
+} 

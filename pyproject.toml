@@ -1,0 +1,17 @@
+[project]
+dependencies = [
+    "flet>=0.21.0",
+    "rapidjson",
+    "json-repair",
+    "json5",
+    "pyinstaller",
+    "pillow"
+] 
+
+[tool.flet.package]
+include = [
+    "assets/*",
+    "views/*",
+    "navigation.py",
+    "main.py"
+] 

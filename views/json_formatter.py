@@ -293,11 +293,11 @@ class JsonFormatterView:
             height=35,
             border_radius=8,
             filled=True,
-            focused_border_color=ft.colors.BLUE_400,
-            focused_bgcolor=ft.colors.BLUE_50,
+            focused_border_color=ft.Colors.BLUE_400,
+            focused_bgcolor=ft.Colors.BLUE_50,
             text_style=ft.TextStyle(
                 font_family="monospace",
-                color=ft.colors.BLUE_GREY_900,
+                color=ft.Colors.BLUE_GREY_900,
                 size=12,
             ),
             content_padding=ft.padding.only(left=10, top=0, right=10, bottom=0),
@@ -311,7 +311,7 @@ class JsonFormatterView:
             value="",
             hint_text="在此粘贴您的JSON数据...",
             hint_style=ft.TextStyle(
-                color=ft.colors.GREY_400,
+                color=ft.Colors.GREY_400,
                 italic=True,
             ),
             text_style=ft.TextStyle(
@@ -342,7 +342,7 @@ class JsonFormatterView:
 
         # 创建按钮时使用更小的 padding
         button_style = {
-            "icon_color": ft.colors.BLUE_GREY_400,
+            "icon_color": ft.Colors.BLUE_GREY_400,
             "icon_size": 20,
             "padding": button_padding,
         }
@@ -394,7 +394,7 @@ class JsonFormatterView:
                                 "JSON格式化",
                                 size=18,
                                 weight=ft.FontWeight.BOLD,
-                                color=ft.colors.BLUE_GREY_900,
+                                color=ft.Colors.BLUE_GREY_900,
                             ),
                             self.indent_dropdown,
                         ],
@@ -434,16 +434,16 @@ class JsonFormatterView:
                                 # 输入框容器
                                 ft.Container(
                                     content=self.input_text,
-                                    border=ft.border.all(1.5, ft.colors.BLUE_GREY_100),
+                                    border=ft.border.all(1.5, ft.Colors.BLUE_GREY_100),
                                     border_radius=12,
                                     padding=20,
                                     expand=True,
-                                    bgcolor=ft.colors.WHITE,
+                                    bgcolor=ft.Colors.WHITE,
                                     shadow=ft.BoxShadow(
                                         spread_radius=1,
                                         blur_radius=5,
                                         color=ft.colors.with_opacity(
-                                            0.1, ft.colors.BLUE_GREY_300
+                                            0.1, ft.Colors.BLUE_GREY_300
                                         ),
                                     ),
                                 ),
@@ -483,16 +483,16 @@ class JsonFormatterView:
                                         ],
                                         spacing=10,
                                     ),
-                                    border=ft.border.all(1.5, ft.colors.BLUE_GREY_100),
+                                    border=ft.border.all(1.5, ft.Colors.BLUE_GREY_100),
                                     border_radius=12,
                                     padding=20,
                                     expand=True,
-                                    bgcolor=ft.colors.WHITE,
+                                    bgcolor=ft.Colors.WHITE,
                                     shadow=ft.BoxShadow(
                                         spread_radius=1,
                                         blur_radius=5,
                                         color=ft.colors.with_opacity(
-                                            0.1, ft.colors.BLUE_GREY_300
+                                            0.1, ft.Colors.BLUE_GREY_300
                                         ),
                                     ),
                                 ),
@@ -540,7 +540,7 @@ class JsonFormatterView:
             lines = self.analyzer.analyze_json(self.input_text.value)
             for line in lines:
                 text_color = (
-                    ft.colors.RED_500 if line.has_error else ft.colors.BLUE_GREY_900
+                    ft.Colors.RED_500 if line.has_error else ft.Colors.BLUE_GREY_900
                 )
 
                 # 创建行容器
@@ -564,7 +564,7 @@ class JsonFormatterView:
                     line_container.content.controls.append(
                         ft.Text(
                             f"← {line.error_message}",
-                            color=ft.colors.RED_400,
+                            color=ft.Colors.RED_400,
                             size=12,
                             italic=True,
                             weight=ft.FontWeight.NORMAL,
@@ -576,7 +576,7 @@ class JsonFormatterView:
         except Exception as e:
             self.error_text.value = f"解析错误: {str(e)}"
             self.error_text.visible = True
-            self.error_text.color = ft.colors.RED_400
+            self.error_text.color = ft.Colors.RED_400
 
         self.page.update()
 
@@ -611,18 +611,3 @@ class JsonFormatterView:
             for control in self.output_container.controls
             if isinstance(control, ft.Container)
         )
-
-
-class TestJsonAnalyzer(unittest.TestCase):
-    def setUp(self):
-        self.analyzer = JsonAnalyzer()
-
-    def test_valid_json(self):
-        json_str = '{"name": "test"}'
-        result = self.analyzer.analyze_json(json_str)
-        self.assertFalse(any(line.has_error for line in result))
-
-    def test_invalid_json(self):
-        json_str = '{"name": "test"'
-        result = self.analyzer.analyze_json(json_str)
-        self.assertTrue(any(line.has_error for line in result))

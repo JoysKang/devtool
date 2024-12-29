@@ -86,3 +86,26 @@ class Navigation:
             self.content_area.content = view.build()
             self.current_view = view
             self.page.update()
+
+    def build(self) -> ft.Control:
+        return ft.NavigationRail(
+            selected_index=0,
+            label_type=ft.NavigationRailLabelType.ALL,
+            min_width=100,
+            min_extended_width=200,
+            leading=ft.Icon(ft.icons.DEVELOPER_BOARD),
+            group_alignment=-0.9,
+            destinations=[
+                ft.NavigationRailDestination(
+                    icon=ft.icons.CODE,
+                    selected_icon=ft.icons.CODE,
+                    label="JSON格式化",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.icons.CONSTRUCTION,
+                    selected_icon=ft.icons.CONSTRUCTION,
+                    label="开发中...",
+                ),
+            ],
+            expand=False,
+        )
