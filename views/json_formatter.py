@@ -278,8 +278,9 @@ class JsonFormatterView:
 
     def __init__(self, page: ft.Page):
         self.page = page
-        self._last_update = 0  # 记录最后更新时间
-        self._debounce_delay = 0.5  # 500ms 延迟
+        self._last_update = 0
+        self._debounce_delay = 0.2
+        self._batch_size = 100  # 批量渲染的行数
         self.setup_controls()
 
     def setup_controls(self):
@@ -553,41 +554,24 @@ class JsonFormatterView:
             return
 
         try:
+            # 分析 JSON
             lines = self.analyzer.analyze_json(self.input_text.value)
-            for line in lines:
-                text_color = (
-                    ft.Colors.RED_500 if line.has_error else ft.Colors.BLUE_GREY_900
-                )
 
-                # 创建行容器
-                line_container = ft.Container(
-                    content=ft.Row(
-                        controls=[
-                            ft.Text(
-                                "  " * line.level + line.text,
-                                color=text_color,
-                                size=14,
-                                font_family="monospace",
-                                weight=ft.FontWeight.NORMAL,
-                            )
-                        ]
-                    ),
-                    padding=ft.padding.symmetric(vertical=3),
-                    border_radius=4,
-                )
+            # 批量处理行
+            batches = [
+                lines[i : i + self._batch_size]
+                for i in range(0, len(lines), self._batch_size)
+            ]
 
-                if line.has_error:
-                    line_container.content.controls.append(
-                        ft.Text(
-                            f"← {line.error_message}",
-                            color=ft.Colors.RED_400,
-                            size=12,
-                            italic=True,
-                            weight=ft.FontWeight.NORMAL,
-                        )
-                    )
+            # 处理第一批
+            self._process_batch(batches[0])
+            self.page.update()
 
-                self.output_container.controls.append(line_container)
+            # 异步处理剩余批次
+            if len(batches) > 1:
+                for batch in batches[1:]:
+                    self._process_batch(batch)
+                    self.page.update()
 
         except Exception as e:
             self.error_text.value = f"解析错误: {str(e)}"
@@ -595,6 +579,31 @@ class JsonFormatterView:
             self.error_text.color = ft.Colors.RED_400
 
         self.page.update()
+
+    def _process_batch(self, lines: List[JsonLine]):
+        """处理一批行数据"""
+        for line in lines:
+            text_color = (
+                ft.Colors.RED_500 if line.has_error else ft.Colors.BLUE_GREY_900
+            )
+
+            # 优化：直接使用字符串拼接而不是重复空格
+            indent = " " * (line.level * 2)
+
+            # 优化：减少控件嵌套层级
+            line_container = ft.Container(
+                content=ft.Text(
+                    f"{indent}{line.text}"
+                    + (f" ← {line.error_message}" if line.has_error else ""),
+                    color=text_color,
+                    size=14,
+                    font_family="monospace",
+                    weight=ft.FontWeight.NORMAL,
+                ),
+                padding=2,  # 减小内边距
+            )
+
+            self.output_container.controls.append(line_container)
 
     # 添加处理函数
     async def handle_paste(self, e):
