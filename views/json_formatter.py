@@ -1,14 +1,12 @@
 import flet as ft
 import json
-from typing import List
+from typing import List, Optional
 from dataclasses import dataclass
 import pyjson5
 import json_repair
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parent.parent))
 from utils.decorators import timing_decorator
+from utils.logger import logger
+import time
 
 
 @dataclass
@@ -51,65 +49,84 @@ class JsonAnalyzer:
         Returns:
             List[JsonLine]: 格式化后的行列表
         """
-        # 预检查输入
-        if not text or not text.strip():
-            return [JsonLine(text="", level=0, has_error=True, error_message="空输入")]
-
-        # 预定义 json.dumps 的通用参数
-        dump_kwargs = {
-            "indent": self.config.indent,
-            "ensure_ascii": self.config.ensure_ascii,
-        }
-
-        # 如果是压缩模式
-        if self.config.separators:
-            dump_kwargs["indent"] = None
-            dump_kwargs["separators"] = self.config.separators
-
-        # 1. 快速检查是否为标准JSON格式
-        first_char = text.lstrip()[0]
-        last_char = text.rstrip()[-1]
-        is_potential_json = (
-            (first_char in "{[" and last_char in "}]")
-            or (first_char in '"' and last_char in '"')
-            or text.strip().lower() in ("true", "false", "null")
-            or text.strip().replace(".", "", 1).isdigit()
-        )
-
-        if is_potential_json:
-            try:
-                # 尝试标准 JSON 解析
-                parsed = json.loads(text)
-                return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
-            except json.JSONDecodeError as e:
-                original_error = e
-        else:
-            original_error = None
-
-        # 2. pyjson5 解析（处理不规范格式）
+        logger.debug(f"开始解析JSON，输入长度: {len(text)}")
         try:
-            parsed = pyjson5.loads(text)
-            return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
-        except Exception:
-            # 3. json_repair 尝试修复
-            try:
-                repaired = json_repair.repair_json(text)
-                if repaired:
-                    parsed = json.loads(repaired)
+            # 预检查输入
+            if not text or not text.strip():
+                return [
+                    JsonLine(text="", level=0, has_error=True, error_message="空输入")
+                ]
+
+            # 添加输入大小检查
+            if len(text) > 10 * 1024 * 1024:  # 10MB
+                return [
+                    JsonLine(
+                        text="", level=0, has_error=True, error_message="输入数据过大"
+                    )
+                ]
+
+            # 预定义 json.dumps 的通用参数
+            dump_kwargs = {
+                "indent": self.config.indent,
+                "ensure_ascii": self.config.ensure_ascii,
+            }
+
+            # 如果是压缩模式
+            if self.config.separators:
+                dump_kwargs["indent"] = None
+                dump_kwargs["separators"] = self.config.separators
+
+            # 1. 快速检查是否为标准JSON格式
+            first_char = text.lstrip()[0]
+            last_char = text.rstrip()[-1]
+            is_potential_json = (
+                (first_char in "{[" and last_char in "}]")
+                or (first_char in '"' and last_char in '"')
+                or text.strip().lower() in ("true", "false", "null")
+                or text.strip().replace(".", "", 1).isdigit()
+            )
+
+            if is_potential_json:
+                try:
+                    # 尝试标准 JSON 解析
+                    parsed = json.loads(text)
                     return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
+                except json.JSONDecodeError as e:
+                    original_error = e
+            else:
+                original_error = None
+
+            # 2. pyjson5 解析（处理不规范格式）
+            try:
+                parsed = pyjson5.loads(text)
+                return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
             except Exception:
-                # 4. 错误处理逻辑
-                if original_error:
-                    return self._handle_error(text, original_error)
-                else:
-                    return [
-                        JsonLine(
-                            text=text,
-                            level=0,
-                            has_error=True,
-                            error_message="无法解析的JSON格式",
+                # 3. json_repair 尝试修复
+                try:
+                    repaired = json_repair.repair_json(text)
+                    if repaired:
+                        parsed = json.loads(repaired)
+                        return self._create_success_lines(
+                            json.dumps(parsed, **dump_kwargs)
                         )
-                    ]
+                except Exception:
+                    # 4. 错误处理逻辑
+                    if original_error:
+                        return self._handle_error(text, original_error)
+                    else:
+                        return [
+                            JsonLine(
+                                text=text,
+                                level=0,
+                                has_error=True,
+                                error_message="无法解析的JSON格式",
+                            )
+                        ]
+
+            logger.info("JSON解析成功")
+        except Exception as e:
+            logger.error(f"JSON解析失败: {str(e)}")
+            raise
 
     def _handle_error(self, text: str, error: json.JSONDecodeError) -> List[JsonLine]:
         """处理JSON解析错误，尝试找到最后一个有效的JSON片段"""
@@ -158,19 +175,18 @@ class JsonAnalyzer:
 
         return lines
 
-    def _find_valid_json_before_position(self, text: str) -> str:
+    def _find_valid_json_before_position(self, text: str) -> Optional[str]:
         """
         从给定文本中查找并修复最后一个有效的JSON片段
-        使用 json_repair 来修复不完整的 JSON
 
         Args:
             text: 要处理的文本
 
         Returns:
-            str: 修复后的JSON字符串,如果无法修复则返回空字符串
+            Optional[str]: 修复后的JSON字符串,如果无法修复则返回None
         """
         if not text.strip():
-            return ""
+            return None
 
         # 找出所有逗号的位置
         comma_positions = [pos for pos, char in enumerate(text) if char == ","]
@@ -179,7 +195,7 @@ class JsonAnalyzer:
             try:
                 return json_repair.repair_json(text)
             except:
-                return ""
+                return None
 
         # 从后向前尝试每个逗号位置
         for pos in reversed(comma_positions):
@@ -195,27 +211,31 @@ class JsonAnalyzer:
             except:
                 continue
 
-        return ""
+        return None
 
     def _create_success_lines(self, formatted_json: str) -> List[JsonLine]:
         """创建格式化的JSON行"""
         lines = []
         level = 0
+        # 预分配列表大小以提升性能
+        estimated_lines = formatted_json.count("\n") + 1
+        lines = [None] * estimated_lines
+        line_index = 0
 
         for line in formatted_json.splitlines():
-            # 计算缩进级别
             stripped = line.lstrip()
-            if stripped.startswith("}") or stripped.startswith("]"):
+            if stripped.startswith(("}", "]")):
                 level -= 1
 
-            lines.append(
-                JsonLine(text=line, level=level, has_error=False, error_message=None)
+            lines[line_index] = JsonLine(
+                text=line, level=level, has_error=False, error_message=None
             )
+            line_index += 1
 
-            if stripped.endswith("{") or stripped.endswith("["):
+            if stripped.endswith(("{", "[")):
                 level += 1
 
-        return lines
+        return lines[:line_index]
 
     def _complete_json(self, partial_json: str) -> str:
         """尝试补全不完整的JSON结构"""
@@ -258,6 +278,8 @@ class JsonFormatterView:
 
     def __init__(self, page: ft.Page):
         self.page = page
+        self._last_update = 0  # 记录最后更新时间
+        self._debounce_delay = 0.5  # 500ms 延迟
         self.setup_controls()
 
     def setup_controls(self):
@@ -514,6 +536,17 @@ class JsonFormatterView:
 
     def on_input_change(self, e):
         """输入改变时的处理"""
+        current_time = time.time()
+
+        # 如果距离上次更新不足 500ms，跳过更新
+        if current_time - self._last_update < self._debounce_delay:
+            return
+
+        self._last_update = current_time
+        self._do_update()
+
+    def _do_update(self):
+        """实际执行更新的函数"""
         self.output_container.controls.clear()
 
         if not self.input_text.value.strip():
