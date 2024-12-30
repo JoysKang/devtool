@@ -1,12 +1,14 @@
 import flet as ft
 import json
-import re
 from typing import List
 from dataclasses import dataclass
-import json5
-import rapidjson
-import unittest
+import pyjson5
 import json_repair
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from utils.decorators import timing_decorator
 
 
 @dataclass
@@ -32,10 +34,11 @@ class JsonAnalyzer:
     def __init__(self, config: JsonAnalyzerConfig = None):
         self.config = config or JsonAnalyzerConfig()
 
+    @timing_decorator
     def analyze_json(self, text: str) -> List[JsonLine]:
         """
         分析JSON文本并返回格式化结果
-        使用到了 rapidjson(快速格式化)、json5(处理不规范格式)、json_repair(修复不完整JSON) 三个库
+        使用 pyjson5(处理不规范格式) 和 json_repair(修复不完整JSON) 两个库
 
         优化点:
         1. 预检查减少不必要的解析
@@ -52,7 +55,7 @@ class JsonAnalyzer:
         if not text or not text.strip():
             return [JsonLine(text="", level=0, has_error=True, error_message="空输入")]
 
-        # 预定义 rapidjson.dumps 的通用参数
+        # 预定义 json.dumps 的通用参数
         dump_kwargs = {
             "indent": self.config.indent,
             "ensure_ascii": self.config.ensure_ascii,
@@ -60,14 +63,8 @@ class JsonAnalyzer:
 
         # 如果是压缩模式
         if self.config.separators:
-            dump_kwargs["indent"] = None  # rapidjson 使用 indent=None 来压缩输出
-
-        try:
-            # 对于大文件，rapidjson的性能最好
-            parsed = rapidjson.loads(text)
-            return self._create_success_lines(rapidjson.dumps(parsed, **dump_kwargs))
-        except rapidjson.JSONDecodeError as e:
-            original_error = e
+            dump_kwargs["indent"] = None
+            dump_kwargs["separators"] = self.config.separators
 
         # 1. 快速检查是否为标准JSON格式
         first_char = text.lstrip()[0]
@@ -80,60 +77,46 @@ class JsonAnalyzer:
         )
 
         if is_potential_json:
-            # 2. rapidjson解析（最快）
             try:
-                # 对于大文件，rapidjson的性能最好
-                parsed = rapidjson.loads(text)
-                return self._create_success_lines(
-                    rapidjson.dumps(parsed, **dump_kwargs)
-                )
-            except rapidjson.JSONDecodeError as e:
+                # 尝试标准 JSON 解析
+                parsed = json.loads(text)
+                return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
+            except json.JSONDecodeError as e:
                 original_error = e
         else:
             original_error = None
 
-        # 3. json5解析（处理不规范格式）
+        # 2. pyjson5 解析（处理不规范格式）
         try:
-            parsed = json5.loads(text)
-            return self._create_success_lines(rapidjson.dumps(parsed, **dump_kwargs))
+            parsed = pyjson5.loads(text)
+            return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
         except Exception:
-            # 4. json_repair尝试修复
+            # 3. json_repair 尝试修复
             try:
                 repaired = json_repair.repair_json(text)
                 if repaired:
-                    # 使用rapidjson验证和格式化
-                    parsed = rapidjson.loads(repaired)
-                    return self._create_success_lines(
-                        rapidjson.dumps(parsed, **dump_kwargs)
-                    )
+                    parsed = json.loads(repaired)
+                    return self._create_success_lines(json.dumps(parsed, **dump_kwargs))
             except Exception:
-                # 5. 错误处理逻辑
+                # 4. 错误处理逻辑
                 if original_error:
                     return self._handle_error(text, original_error)
                 else:
-                    # 创建一个通用错误信息
                     return [
                         JsonLine(
-                            text=text,  # 保留完整文本
+                            text=text,
                             level=0,
                             has_error=True,
                             error_message="无法解析的JSON格式",
                         )
                     ]
 
-    def _handle_error(
-        self, text: str, error: rapidjson.JSONDecodeError
-    ) -> List[JsonLine]:
+    def _handle_error(self, text: str, error: json.JSONDecodeError) -> List[JsonLine]:
         """处理JSON解析错误，尝试找到最后一个有效的JSON片段"""
         lines = []
         try:
             # 从错误信息中提取位置
-            error_str = str(error)
-            offset_match = re.search(r"at offset (\d+):", error_str)
-            if not offset_match:
-                raise ValueError("无法解析错误位置")
-
-            error_pos = int(offset_match.group(1))
+            error_pos = error.pos
             text_before_error = text[:error_pos]
 
             # 从错误位置向前查找有效的JSON片段
@@ -142,7 +125,7 @@ class JsonAnalyzer:
             if valid_json:
                 # 格式化有效部分
                 try:
-                    parsed = rapidjson.loads(valid_json)
+                    parsed = json.loads(valid_json)
                     formatted = json.dumps(
                         parsed,
                         indent=self.config.indent,
@@ -159,7 +142,7 @@ class JsonAnalyzer:
                     text=error_context,
                     level=0,
                     has_error=True,
-                    error_message=f"解析错误 (位置 {error_pos}): {error_str}",
+                    error_message=f"解析错误 (位置 {error_pos}): {str(error)}",
                 )
             )
 
