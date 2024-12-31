@@ -282,6 +282,8 @@ class JsonFormatterView:
         self._debounce_delay = 0.2
         self._batch_size = 100  # 批量渲染的行数
         self.setup_controls()
+        # 初始化一个空的列表来存储 JsonLine
+        self.json_lines: List[JsonLine] = []
 
     def setup_controls(self):
         """初始化控件"""
@@ -331,8 +333,8 @@ class JsonFormatterView:
         )
 
         # 输出区域
-        self.output_container = ft.Column(
-            scroll=ft.ScrollMode.AUTO,
+        # 使用 ListView 替换 Column
+        self.output_container = ft.ListView(
             expand=True,
             spacing=0,
             width=float("inf"),
@@ -549,29 +551,20 @@ class JsonFormatterView:
     def _do_update(self):
         """实际执行更新的函数"""
         self.output_container.controls.clear()
+        self.json_lines = []  # 清空旧数据
 
         if not self.input_text.value.strip():
+            self.page.update()
             return
 
         try:
             # 分析 JSON
-            lines = self.analyzer.analyze_json(self.input_text.value)
+            self.json_lines = self.analyzer.analyze_json(self.input_text.value)
 
-            # 批量处理行
-            batches = [
-                lines[i : i + self._batch_size]
-                for i in range(0, len(lines), self._batch_size)
-            ]
-
-            # 处理第一批
-            self._process_batch(batches[0])
-            self.page.update()
-
-            # 异步处理剩余批次
-            if len(batches) > 1:
-                for batch in batches[1:]:
-                    self._process_batch(batch)
-                    self.page.update()
+            # 使用 ListView 的 controls 属性来添加控件
+            self.output_container.controls = self._create_list_view_controls(
+                self.json_lines
+            )
 
         except Exception as e:
             self.error_text.value = f"解析错误: {str(e)}"
@@ -580,8 +573,9 @@ class JsonFormatterView:
 
         self.page.update()
 
-    def _process_batch(self, lines: List[JsonLine]):
-        """处理一批行数据"""
+    def _create_list_view_controls(self, lines: List[JsonLine]) -> List[ft.Control]:
+        """创建 ListView 的控件列表"""
+        controls = []
         for line in lines:
             text_color = (
                 ft.Colors.RED_500 if line.has_error else ft.Colors.BLUE_GREY_900
@@ -602,8 +596,8 @@ class JsonFormatterView:
                 ),
                 padding=2,  # 减小内边距
             )
-
-            self.output_container.controls.append(line_container)
+            controls.append(line_container)
+        return controls
 
     # 添加处理函数
     async def handle_paste(self, e):
@@ -632,7 +626,8 @@ class JsonFormatterView:
     def get_output_text(self) -> str:
         """获取输出文本内容"""
         return "\n".join(
-            control.content.controls[0].value
+            control.content.value
             for control in self.output_container.controls
             if isinstance(control, ft.Container)
+            and isinstance(control.content, ft.Text)
         )
