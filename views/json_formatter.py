@@ -32,7 +32,7 @@ class JsonAnalyzer:
     def __init__(self, config: JsonAnalyzerConfig = None):
         self.config = config or JsonAnalyzerConfig()
 
-    @timing_decorator
+    # @timing_decorator
     def analyze_json(self, text: str) -> List[JsonLine]:
         """
         分析JSON文本并返回格式化结果
@@ -518,7 +518,7 @@ class JsonFormatterView:
             width=float("inf"),
         )
 
-    def on_indent_change(self, e):
+    async def on_indent_change(self, e):
         """缩进值改变时的处理"""
         value = self.indent_dropdown.value
         if value == "compact":
@@ -535,9 +535,10 @@ class JsonFormatterView:
 
         # 重新格式化当前输入
         if self.input_text.value:
-            self.on_input_change(None)
+            await self.on_input_change(None)
 
-    def on_input_change(self, e):
+    # @timing_decorator
+    async def on_input_change(self, e):
         """输入改变时的处理"""
         current_time = time.time()
 
@@ -545,16 +546,17 @@ class JsonFormatterView:
         if current_time - self._last_update < self._debounce_delay:
             return
 
+        await self.page.update_async()
         self._last_update = current_time
-        self._do_update()
+        await self._do_update()
 
-    def _do_update(self):
+    async def _do_update(self):
         """实际执行更新的函数"""
         self.output_container.controls.clear()
         self.json_lines = []  # 清空旧数据
 
         if not self.input_text.value.strip():
-            self.page.update()
+            await self.page.update_async()
             return
 
         try:
@@ -571,7 +573,7 @@ class JsonFormatterView:
             self.error_text.visible = True
             self.error_text.color = ft.Colors.RED_400
 
-        self.page.update()
+        await self.page.update_async()
 
     def _create_list_view_controls(self, lines: List[JsonLine]) -> List[ft.Control]:
         """创建 ListView 的控件列表"""
@@ -605,10 +607,10 @@ class JsonFormatterView:
         text = await self.page.get_clipboard()
         if text:
             self.input_text.value = text
-            self.on_input_change(None)
-            self.page.update()
+            await self.on_input_change(None)
+            await self.page.update_async()
 
-    def handle_copy(self, text: str):
+    async def handle_copy(self, text: str):
         """处理复制操作"""
         self.page.set_clipboard(text)
         self.page.show_snack_bar(ft.SnackBar(content=ft.Text("已复制到剪贴板")))
