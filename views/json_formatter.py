@@ -279,7 +279,7 @@ class JsonFormatterView:
     def __init__(self, page: ft.Page):
         self.page = page
         self._last_update = 0
-        self._debounce_delay = 0.2
+        self._debounce_delay = 0.5
         self._batch_size = 100  # 批量渲染的行数
         self.setup_controls()
         # 初始化一个空的列表来存储 JsonLine
@@ -546,7 +546,6 @@ class JsonFormatterView:
         if current_time - self._last_update < self._debounce_delay:
             return
 
-        await self.page.update_async()
         self._last_update = current_time
         await self._do_update()
 
